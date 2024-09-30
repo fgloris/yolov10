@@ -1,52 +1,53 @@
-#ifndef INFERENCE_H
-#define INFERENCE_H
-
-// Cpp native
-#include <fstream>
-#include <vector>
+#include <cmath>
 #include <string>
-#include <random>
+#include <vector>
+// third party 
+#include <opencv2/core.hpp>
+#include <opencv2/core/types.hpp>
+#include <openvino/openvino.hpp>
 
-// OpenCV / DNN / Inference
-#include <opencv2/imgproc.hpp>
-#include <opencv2/opencv.hpp>
-#include <opencv2/dnn.hpp>
-
-struct Detection
-{
-    int class_id{0};
-    std::string className{};
-    float confidence{0.0};
-    cv::Scalar color{};
-    cv::Rect box{};
+struct GridAndStride {
+  int grid0;
+  int grid1;
+  int stride;
 };
 
-class Inference
-{
+class Detector {
 public:
-    Inference(const std::string &onnxModelPath, const cv::Size &modelInputShape = {640, 640}, const std::string &classesTxtFile = "", const bool &runWithCuda = true);
-    std::vector<Detection> runInference(const cv::Mat &input);
+  Detector(const std::string &label_path,
+           const std::string &model_path, 
+           const std::string &device_name,
+           const std::vector<std::string> &ignore_classes,
+           float conf_threshold = 0.8,
+           float nms_thre = 0.4,
+           int top_k = 50);
 
+
+  std::vector<Armor> detect(const cv::Mat &input) noexcept;
 private:
-    void loadClassesFromFile();
-    void loadOnnxNetwork();
-    cv::Mat formatToSquare(const cv::Mat &source);
+  void init();
 
-    std::string modelPath{};
-    std::string classesPath{};
-    bool cudaEnabled{};
+  cv::Mat preprocessImage(const cv::Mat &input) noexcept;
 
-    std::vector<std::string> classes{"person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"};
+  cv::Mat infer(const cv::Mat &input) noexcept;
 
-    cv::Size2f modelShape{};
+  std::vector<Armor> postprocessOutput(const cv::Mat &input) noexcept;
 
-    float modelConfidenceThreshold {0.25};
-    float modelScoreThreshold      {0.45};
-    float modelNMSThreshold        {0.50};
+  // void nmsMergeSortedBboxes() noexcept;
 
-    bool letterBoxForSquare = true;
+  std::string model_path_;
+  std::string device_name_;
+  float conf_threshold_;
+  float nms_threshold_;
+  int top_k_;
+  std::vector<int> strides_;
+  std::vector<GridAndStride> grid_strides_;
 
-    cv::dnn::Net net;
+  Eigen::Matrix3f transform_matrix_;
+  std::mutex mtx_;
+  std::unique_ptr<ov::Core> ov_core_;
+  std::unique_ptr<ov::CompiledModel> compiled_model_;
+
+  std::vector<std::string> class_names_;
+  std::vector<std::string> ignore_classes_;
 };
-
-#endif // INFERENCE_H

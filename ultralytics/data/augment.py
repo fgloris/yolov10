@@ -933,8 +933,8 @@ class Format:
             labels["masks"] = masks
         if self.normalize:
             instances.normalize(w, h)
-        labels["img"] = self._format_img(img)
         labels["cls"] = torch.from_numpy(cls) if nl else torch.zeros(nl)
+        labels["img"],labels["cls"] = self._format_img(img,labels["cls"])
         labels["bboxes"] = torch.from_numpy(instances.bboxes) if nl else torch.zeros((nl, 4))
         if self.return_keypoint:
             labels["keypoints"] = torch.from_numpy(instances.keypoints)
@@ -947,14 +947,25 @@ class Format:
             labels["batch_idx"] = torch.zeros(nl)
         return labels
 
-    def _format_img(self, img):
+    def _convert_cls(self, cls):
+        cls = cls.item()
+        if cls>9:cls-=9
+        else: cls+=9
+        return torch.tensor(cls)
+
+    def _format_img(self, img, cls):
         """Format the image for YOLO from Numpy array to PyTorch tensor."""
         if len(img.shape) < 3:
             img = np.expand_dims(img, -1)
         img = img.transpose(2, 0, 1)
-        img = np.ascontiguousarray(img[::-1] if random.uniform(0, 1) > self.bgr else img)
+        if random.uniform(0, 1) > self.bgr:
+            img = np.ascontiguousarray(img[::-1])
+        else:
+            for i in range(len(cls)):
+                for j in range(len(cls[i])):
+                    cls[i][j] = self._convert_cls(cls[i][j])
         img = torch.from_numpy(img)
-        return img
+        return img, cls
 
     def _format_segments(self, instances, cls, w, h):
         """Convert polygon points to bitmap."""

@@ -26,6 +26,7 @@ __all__ = (
     "C3x",
     "C3TR",
     "C3Ghost",
+    "C2fGhost",
     "GhostBottleneck",
     "Bottleneck",
     "BottleneckCSP",
@@ -242,14 +243,14 @@ class C2f(nn.Module):
 class C3(nn.Module):
     """CSP Bottleneck with 3 convolutions."""
 
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+    def __init__(self, c1, c2, n=1, shortcut=True, depthwise=False, g=1, e=0.5):
         """Initialize the CSP Bottleneck with given channels, number, shortcut, groups, and expansion values."""
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
         self.cv2 = Conv(c1, c_, 1, 1)
         self.cv3 = Conv(2 * c_, c2, 1)  # optional act=FReLU(c2)
-        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, k=((1, 1), (3, 3)), e=1.0) for _ in range(n)))
+        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, k=((1, 1), (3, 3)), e=1.0, depthwise=depthwise) for _ in range(n)))
 
     def forward(self, x):
         """Forward pass through the CSP bottleneck with 2 convolutions."""
@@ -302,6 +303,15 @@ class C3Ghost(C3):
         c_ = int(c2 * e)  # hidden channels
         self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
 
+class C2fGhost(C2f):
+    """C2f module with GhostBottleneck()."""
+
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        """Initialize 'SPP' module with various pooling sizes for spatial pyramid pooling."""
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
+
 
 class GhostBottleneck(nn.Module):
     """Ghost Bottleneck https://github.com/huawei-noah/ghostnet."""
@@ -327,14 +337,14 @@ class GhostBottleneck(nn.Module):
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
 
-    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5, depthwise=False):
         """Initializes a bottleneck module with given input/output channels, shortcut option, group, kernels, and
         expansion.
         """
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, k[0], 1)
-        self.cv2 = Conv(c_, c2, k[1], 1, g=g)
+        self.cv2 = Conv(c_, c2, k[1], 1, g=g) if not depthwise else DWConv(c_, c2, k[1], 1)
         self.add = shortcut and c1 == c2
 
     def forward(self, x):
@@ -354,7 +364,7 @@ class BottleneckCSP(nn.Module):
         self.cv3 = nn.Conv2d(c_, c_, 1, 1, bias=False)
         self.cv4 = Conv(2 * c_, c2, 1, 1)
         self.bn = nn.BatchNorm2d(2 * c_)  # applied to cat(cv2, cv3)
-        self.act = nn.SiLU()
+        self.act = nn.ReLU()
         self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
 
     def forward(self, x):
@@ -705,7 +715,7 @@ class RepVGGDW(torch.nn.Module):
         self.conv = Conv(ed, ed, 7, 1, 3, g=ed, act=False)
         self.conv1 = Conv(ed, ed, 3, 1, 1, g=ed, act=False)
         self.dim = ed
-        self.act = nn.SiLU()
+        self.act = nn.ReLU()
     
     def forward(self, x):
         return self.act(self.conv(x) + self.conv1(x))

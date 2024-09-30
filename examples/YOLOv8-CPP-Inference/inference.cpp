@@ -19,6 +19,7 @@ std::vector<Detection> Inference::runInference(const cv::Mat &input)
 
     cv::Mat blob;
     cv::dnn::blobFromImage(modelInput, blob, 1.0/255.0, modelShape, cv::Scalar(), true, false);
+    std::cout << "Input Blob Shape: " << blob.size[0] << "x" << blob.size[1] << "x" << blob.size[2] << std::endl;
     net.setInput(blob);
 
     std::vector<cv::Mat> outputs;

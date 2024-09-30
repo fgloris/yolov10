@@ -561,6 +561,7 @@ class Annotator:
             f"Distance MM: {distance_mm:.2f}mm", cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2
         )
         cv2.rectangle(self.im, (15, 75), (15 + text_width_mm + 10, 75 + text_height_mm + 20), (255, 255, 255), -1)
+        """
         cv2.putText(
             self.im,
             f"Distance MM: {distance_mm:.2f}mm",
@@ -570,7 +571,7 @@ class Annotator:
             (0, 0, 0),
             2,
             cv2.LINE_AA,
-        )
+        )"""
 
         cv2.line(self.im, centroids[0], centroids[1], line_color, 3)
         cv2.circle(self.im, centroids[0], 6, centroid_color, -1)
